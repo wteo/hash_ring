@@ -59,23 +59,20 @@ class HashRing(object):
         if not weights:
             weights = {}
         self.weights = weights
+        self._total_weight = 0
 
         self._generate_circle()
 
     def _generate_circle(self):
         """Generates the circle.
         """
-        total_weight = 0
         for node in self.nodes:
-            total_weight += self.weights.get(node, 1)
+            self._total_weight += self.weights.get(node, 1)
 
         for node in self.nodes:
-            weight = 1
+            weight = self.weights.get(node, 1)
 
-            if node in self.weights:
-                weight = self.weights.get(node)
-
-            factor = math.floor((40*len(self.nodes)*weight) / total_weight);
+            factor = math.floor((40*len(self.nodes)*weight) / self._total_weight)
 
             for j in range(0, int(factor)):
                 b_key = self._hash_digest( '%s-%s' % (node, j) )
@@ -145,6 +142,33 @@ class HashRing(object):
                 val = distinct_filter(self.ring[key])
                 if val:
                     yield val
+
+    def add_nodes(self, nodes=None, weights=None):
+        for node in nodes:
+            if node not in self.nodes:
+                self.nodes.append(node)
+
+        weights and self.weights.update(weights)
+        self._generate_circle()
+
+    def remove_nodes(self, nodes):
+        for node in nodes:
+            if node not in self.nodes:
+                raise KeyError('node \'{}\' not found, available nodes: {}'.format(node, self.nodes.keys()))
+
+        for node in self.nodes:
+            weight = self.weights.get(node, 1)
+
+            factor = math.floor((40*len(self.nodes)*weight) / self._total_weight)
+
+            for j in range(0, int(factor)):
+                b_key = self._hash_digest( '%s-%s' % (node, j) )
+
+                for i in range(0, 3):
+                    key = self._hash_val(b_key, lambda x: x+i*4)
+                    self.ring.pop(key)
+
+        self._sorted_keys = sorted(self.ring.keys())
 
     def gen_key(self, key):
         """Given a string key it returns a long value,
